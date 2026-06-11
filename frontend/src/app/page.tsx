@@ -13,9 +13,12 @@ export default function Home() {
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-400 to-emerald-600 flex items-center justify-center">
             <Zap className="w-4 h-4 text-black" fill="currentColor" />
           </div>
-          <span className="font-semibold text-lg tracking-tight">NexStore</span>
+          <span className="font-semibold text-lg tracking-tight">ZeroTake</span>
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/dashboard" className="text-sm text-gray-400 hover:text-white transition-colors">
+            Dashboard
+          </Link>
           <Link href="/login" className="text-sm text-gray-400 hover:text-white transition-colors">
             Login
           </Link>

@@ -98,6 +98,12 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // OAuth-only accounts have no password
+    if (!user.passwordHash) {
+      res.status(401).json({ error: "This account uses social login. Please sign in with Google, GitHub, or Apple." });
+      return;
+    }
+
     // Verify password
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
@@ -156,6 +162,115 @@ router.get(
       res.json({ user });
     } catch (err) {
       console.error("Get me error:", err);
+      res.status(500).json({ error: "Internal server error." });
+    }
+  }
+);
+
+/**
+ * PATCH /api/auth/profile
+ * Update the authenticated user's profile (storeName).
+ */
+router.patch(
+  "/profile",
+  authMiddleware,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { storeName } = req.body;
+
+      if (!storeName || typeof storeName !== "string" || !storeName.trim()) {
+        res.status(400).json({ error: "storeName is required." });
+        return;
+      }
+
+      const trimmed = storeName.trim();
+
+      // Check uniqueness (excluding the current user)
+      const conflict = await prisma.user.findFirst({
+        where: {
+          storeName: { equals: trimmed, mode: "insensitive" },
+          NOT: { id: req.user!.userId },
+        },
+      });
+
+      if (conflict) {
+        res.status(409).json({ error: "That store name is already taken." });
+        return;
+      }
+
+      const user = await prisma.user.update({
+        where: { id: req.user!.userId },
+        data: { storeName: trimmed },
+        select: {
+          id: true,
+          email: true,
+          storeName: true,
+          planStatus: true,
+          stripeConnectId: true,
+          stripeCustomerId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      res.json({ user });
+    } catch (err) {
+      console.error("Update profile error:", err);
+      res.status(500).json({ error: "Internal server error." });
+    }
+  }
+);
+
+/**
+ * PATCH /api/auth/razorpay-account
+ * Save or clear the authenticated creator's Razorpay Key ID.
+ */
+router.patch(
+  "/razorpay-account",
+  authMiddleware,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { razorpayKeyId } = req.body;
+
+      if (razorpayKeyId !== null && razorpayKeyId !== undefined && typeof razorpayKeyId !== "string") {
+        res.status(400).json({ error: "razorpayKeyId must be a string or null." });
+        return;
+      }
+
+      const trimmed = razorpayKeyId ? razorpayKeyId.trim() : null;
+
+      if (trimmed) {
+        const conflict = await prisma.user.findFirst({
+          where: {
+            razorpayKeyId: trimmed,
+            NOT: { id: req.user!.userId },
+          },
+        });
+        if (conflict) {
+          res.status(409).json({ error: "This Razorpay Key ID is already linked to another account." });
+          return;
+        }
+      }
+
+      const user = await prisma.user.update({
+        where: { id: req.user!.userId },
+        data: { razorpayKeyId: trimmed },
+        select: {
+          id: true,
+          email: true,
+          storeName: true,
+          planStatus: true,
+          stripeConnectId: true,
+          stripeCustomerId: true,
+          razorpayKeyId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      res.json({ user });
+    } catch (err) {
+      console.error("Update Razorpay account error:", err);
       res.status(500).json({ error: "Internal server error." });
     }
   }
